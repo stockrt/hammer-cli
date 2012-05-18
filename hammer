@@ -24,22 +24,28 @@ require "clamp"
 
 module Hammer
 
-#  class ForemanConfig
-#    def configinit
-#      
-#    end
-#  end
-
   class ForemanResource
-    
+    @@foreman_interface = nil
 
-    def self.get_collection(path, foreman_config = {}, options = {})
-      RestClient.log = 'stdout' if foreman_config[:debug]
-      JSON.parse(RestClient::Request.new({:method  => :get,
-                                     :url     => "#{foreman_config[:foreman_url]}/#{path.to_s.chomp('/')}",
-                                     :user    => foreman_config[:foreman_user], :password => foreman_config[:foreman_pass],
-                                     :headers => { :accept => :json, :content_type => :json }}.merge(options)).execute.to_s)
+    def self.connect!(url, opts = {})
+      @@foreman_interface = RestClient::Resource.new(url, opts)
     end
+
+    def self.connection
+      @@foreman_interface || nil
+    end
+
+    def self.get_resource(path)
+      JSON.parse(@@foreman_interface[path].get.body)
+    end
+
+#    def self.get_collection(path, foreman_config = {}, options = {})
+#      RestClient.log = 'stdout' if foreman_config[:debug]
+#      JSON.parse(RestClient::Request.new({:method  => :get,
+#                                     :url     => "#{foreman_config[:foreman_url]}/#{path.to_s.chomp('/')}",
+#                                     :user    => foreman_config[:foreman_user], :password => foreman_config[:foreman_pass],
+#                                     :headers => { :accept => :json, :content_type => :json }}.merge(options)).execute.to_s)
+#    end
 
     def self.print_response(response, format)
 
@@ -92,6 +98,11 @@ module Hammer
 
     def default_content_type
       return "json"
+    end
+
+    def self.establish_connection(url, user, pass)
+      headers = { :accept => 'json', :content_type => 'json' }
+      ForemanResource.connect!(url, :user => user, :password => pass, :headers => headers) if ForemanResource.connection.nil?
     end
 
   end
@@ -200,7 +211,8 @@ module Hammer
     end
 
     def execute
-      ForemanResource::print_response(ForemanResource::get_collection('hosts', {:foreman_url => server, :foreman_user => user, :foreman_pass => pass, :debug => debug?}), format)
+      HammerCommand.establish_connection(server, user, pass) if ForemanResource.connection.nil?
+      ForemanResource::print_response(ForemanResource::get_resource('hosts'), format)
     end
 
   end
